@@ -49,6 +49,7 @@
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
 		</plugins>
+		<finalName>spring_boot_app_ci_cd</finalName>
 	</build>
 
 </project>
