@@ -8,13 +8,13 @@
 <body>
 <main class="container mt-5">
     <h1 class="text-center mb-4">Employee Form</h1>
-    <form th:action="@{/saveEmployee}" th:object="${employee}" method="post">
+    <form id="employee-form" th:action="@{/saveEmployee}" th:object="${employee}" method="post">
         <input type="hidden" th:field="*{id}">
-        <div class="mb-3"><label for="firstName">First Name</label><input id="firstName" type="text" class="form-control" th:field="*{firstName}" required></div>
-        <div class="mb-3"><label for="lastName">Last Name</label><input id="lastName" type="text" class="form-control" th:field="*{lastName}" required></div>
-        <div class="mb-3"><label for="email">Email</label><input id="email" type="email" class="form-control" th:field="*{email}" required></div>
-        <div class="mb-3"><label for="position">Position</label><input id="position" type="text" class="form-control" th:field="*{position}" required></div>
-        <button type="submit" class="btn btn-primary">Save</button>
+        <div class="mb-3"><label for="employee-first-name">First Name</label><input id="employee-first-name" type="text" class="form-control" th:field="*{firstName}" required><div class="text-danger" th:errors="*{firstName}"></div></div>
+        <div class="mb-3"><label for="employee-last-name">Last Name</label><input id="employee-last-name" type="text" class="form-control" th:field="*{lastName}" required><div class="text-danger" th:errors="*{lastName}"></div></div>
+        <div class="mb-3"><label for="employee-email">Email</label><input id="employee-email" type="email" class="form-control" th:field="*{email}" required><div class="text-danger" th:errors="*{email}"></div></div>
+        <div class="mb-3"><label for="employee-position">Position</label><input id="employee-position" type="text" class="form-control" th:field="*{position}" required><div class="text-danger" th:errors="*{position}"></div></div>
+        <button id="save-employee-button" type="submit" class="btn btn-primary">Save</button>
         <a th:href="@{/employees}" class="btn btn-secondary">Cancel</a>
     </form>
 </main>

@@ -2,8 +2,10 @@ package com.example.employeemanager.controller;
 
 import com.example.employeemanager.model.Employee;
 import com.example.employeemanager.service.EmployeeService;
+import jakarta.validation.Valid;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,8 +33,12 @@ public class EmployeeController {
     }
 
     @PostMapping("/saveEmployee")
-    public String saveEmployee(@ModelAttribute("employee") Employee employee) {
-        employeeService.saveEmployee(employee);
+    public String saveEmployee(@Valid @ModelAttribute("employee") Employee employee,
+                               BindingResult bindingResult) {
+        if (bindingResult.hasErrors()) {
+            return "employee_form";
+        }
+        employeeService.addEmployee(employee);
         return "redirect:/employees";
     }
 
@@ -44,7 +50,7 @@ public class EmployeeController {
 
     @PostMapping("/deleteEmployee/{id}")
     public String deleteEmployee(@PathVariable Long id) {
-        employeeService.deleteEmployeeById(id);
+        employeeService.deleteEmployee(id);
         return "redirect:/employees";
     }
 }

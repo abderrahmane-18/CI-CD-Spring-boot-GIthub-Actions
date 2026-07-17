@@ -13,6 +13,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -25,19 +26,20 @@ class EmployeeServiceImplTest {
     private EmployeeServiceImpl employeeService;
 
     @Test
-    void saveEmployeePersistsAndReturnsEmployee() {
+    void addEmployee_shouldSaveAndReturnEmployee() {
         Employee employee = new Employee(null, "Ada", "Lovelace", "ada@example.com", "Engineer");
         Employee savedEmployee = new Employee(1L, "Ada", "Lovelace", "ada@example.com", "Engineer");
         when(employeeRepository.save(employee)).thenReturn(savedEmployee);
 
-        Employee result = employeeService.saveEmployee(employee);
+        Employee result = employeeService.addEmployee(employee);
 
         assertThat(result).isSameAs(savedEmployee);
         verify(employeeRepository).save(employee);
+        verifyNoMoreInteractions(employeeRepository);
     }
 
     @Test
-    void getAllEmployeesReturnsRepositoryEmployees() {
+    void getAllEmployees_shouldReturnAvailableEmployees() {
         List<Employee> employees = List.of(new Employee(1L, "Ada", "Lovelace", "ada@example.com", "Engineer"));
         when(employeeRepository.findAll()).thenReturn(employees);
 
@@ -45,13 +47,15 @@ class EmployeeServiceImplTest {
 
         assertThat(result).containsExactlyElementsOf(employees);
         verify(employeeRepository).findAll();
+        verifyNoMoreInteractions(employeeRepository);
     }
 
     @Test
-    void deleteEmployeeByIdDeletesTheRequestedEmployee() {
-        employeeService.deleteEmployeeById(42L);
+    void deleteEmployee_shouldDeleteEmployeeById() {
+        employeeService.deleteEmployee(42L);
 
         verify(employeeRepository).deleteById(42L);
+        verifyNoMoreInteractions(employeeRepository);
     }
 
     @Test
@@ -62,5 +66,6 @@ class EmployeeServiceImplTest {
 
         assertThat(result).isNull();
         verify(employeeRepository).findById(404L);
+        verifyNoMoreInteractions(employeeRepository);
     }
 }
