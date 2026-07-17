@@ -1,0 +1,14 @@
+.git
+.github
+.mvn
+target
+logs
+*.log
+*.mv.db
+*.trace.db
+.idea
+.vscode
+.settings
+.classpath
+.project
+HELP.md
