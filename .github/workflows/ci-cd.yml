@@ -1,0 +1,252 @@
+name: Employee Manager CI/CD
+
+on:
+  push:
+    branches: ["feature/employee-manager"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: abderrahmane18/spring_boot_app_ci_cd
+
+jobs:
+  maven:
+    name: Maven build and unit tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 with Maven cache
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: maven
+
+      - name: Make Maven Wrapper executable
+        run: chmod +x mvnw
+
+      - name: Compile, test, verify, and package
+        run: ./mvnw --batch-mode --no-transfer-progress clean verify
+
+      - name: Confirm executable JAR exists
+        run: test -f target/employee-manager.jar
+
+      - name: Upload executable JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: employee-manager-jar
+          path: target/employee-manager.jar
+          if-no-files-found: error
+
+      - name: Upload unit-test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: target/surefire-reports
+          if-no-files-found: ignore
+
+  selenium:
+    name: Selenium employee lifecycle
+    needs: maven
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 with Maven cache
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: maven
+
+      - name: Set up Chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Make Maven Wrapper executable
+        run: chmod +x mvnw
+
+      - name: Download tested application JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: employee-manager-jar
+          path: target
+
+      - name: Start Employee Manager
+        run: |
+          java -jar target/employee-manager.jar > target/application.log 2>&1 &
+          echo $! > target/application.pid
+
+      - name: Wait for Employee Manager readiness
+        run: |
+          for attempt in {1..60}; do
+            if curl --fail --silent http://localhost:8080/ | grep --quiet "Employee Management System"; then
+              exit 0
+            fi
+            if ! kill -0 "$(cat target/application.pid)" 2>/dev/null; then
+              cat target/application.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat target/application.log
+          exit 1
+
+      - name: Run Selenium integration test
+        run: >-
+          ./mvnw --batch-mode --no-transfer-progress -Pselenium
+          -Dselenium.base-url=http://localhost:8080
+          test-compile failsafe:integration-test failsafe:verify
+
+      - name: Upload Selenium failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: selenium-failure-evidence
+          path: |
+            target/application.log
+            target/selenium-screenshots
+            target/failsafe-reports
+          if-no-files-found: ignore
+
+      - name: Stop Employee Manager
+        if: always()
+        run: |
+          if test -f target/application.pid; then
+            kill "$(cat target/application.pid)" 2>/dev/null || true
+          fi
+
+  jmeter:
+    name: JMeter plan validation
+    needs: maven
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+
+      - name: Download tested application JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: employee-manager-jar
+          path: target
+
+      - name: Start Employee Manager
+        run: |
+          java -jar target/employee-manager.jar > target/jmeter-application.log 2>&1 &
+          echo $! > target/jmeter-application.pid
+
+      - name: Wait for Employee Manager readiness
+        run: |
+          for attempt in {1..60}; do
+            if curl --fail --silent http://localhost:8080/ | grep --quiet "Employee Management System"; then
+              exit 0
+            fi
+            if ! kill -0 "$(cat target/jmeter-application.pid)" 2>/dev/null; then
+              cat target/jmeter-application.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat target/jmeter-application.log
+          exit 1
+
+      - name: Install Apache JMeter 5.6.3
+        run: |
+          curl --fail --silent --show-error --location \
+            --output target/apache-jmeter-5.6.3.tgz \
+            https://dlcdn.apache.org/jmeter/binaries/apache-jmeter-5.6.3.tgz
+          curl --fail --silent --show-error --location \
+            --output target/apache-jmeter-5.6.3.tgz.sha512 \
+            https://downloads.apache.org/jmeter/binaries/apache-jmeter-5.6.3.tgz.sha512
+          cd target
+          sha512sum --check apache-jmeter-5.6.3.tgz.sha512
+          tar --extract --gzip --file apache-jmeter-5.6.3.tgz
+
+      - name: Execute JMeter plan with 50 virtual users
+        run: |
+          target/apache-jmeter-5.6.3/bin/jmeter \
+            -n \
+            -t performance-tests/employee-manager.jmx \
+            -Jhost=localhost \
+            -Jport=8080 \
+            -l target/jmeter-results.jtl
+          sample_count=$(($(wc -l < target/jmeter-results.jtl) - 1))
+          if test "$sample_count" -ne 100; then
+            echo "Expected 100 JMeter samples, found $sample_count"
+            exit 1
+          fi
+          if ! awk -F, 'NR > 1 && $8 != "true" { failed = 1 } END { exit failed }' target/jmeter-results.jtl; then
+            echo "At least one JMeter response assertion failed"
+            exit 1
+          fi
+
+      - name: Upload JMeter evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jmeter-results
+          path: |
+            target/jmeter-results.jtl
+            target/jmeter-application.log
+          if-no-files-found: ignore
+
+      - name: Stop Employee Manager
+        if: always()
+        run: |
+          if test -f target/jmeter-application.pid; then
+            kill "$(cat target/jmeter-application.pid)" 2>/dev/null || true
+          fi
+
+  docker:
+    name: Docker build and publish
+    needs: [maven, selenium, jmeter]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Sign in to Docker Hub
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/employee-manager'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME || secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN || secrets.DOCKER_PASSWORD }}
+
+      - name: Generate Docker image tags
+        id: metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/feature/employee-manager' }}
+            type=sha,format=short
+
+      - name: Build and conditionally publish Employee Manager image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/feature/employee-manager' }}
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

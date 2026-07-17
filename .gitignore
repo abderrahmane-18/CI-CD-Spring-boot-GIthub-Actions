@@ -1,5 +1,17 @@
 HELP.md
 target/
+logs/
+*.log
+*.mv.db
+*.trace.db
+.env
+.env.*
+*.jtl
+jmeter.log
+target/jmeter-report/
+target/jmeter-results.jtl
+chromedriver*
+geckodriver*
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
